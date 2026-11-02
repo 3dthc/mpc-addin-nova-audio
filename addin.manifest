@@ -1,0 +1,7 @@
+# nova-audio: lets the Nova Editor plugin play a MiniNova (or anything on the MPC's inputs) on its own track.
+ADDIN_ID=nova-audio
+ADDIN_NAME="Nova Audio (for Nova Editor)"
+ADDIN_SO=libnova_audio.so
+ADDIN_CONF=""
+ADDIN_FILES=""
+ADDIN_DONE="Load Nova Editor on a plugin track: it now plays the MiniNova's input (OUTPUT > AUDIO IN). Log: nova-audio.log in this folder."

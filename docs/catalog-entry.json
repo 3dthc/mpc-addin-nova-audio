@@ -1,0 +1,16 @@
+{
+  "id": "nova-audio",
+  "name": "Nova Audio",
+  "author": "3dthc",
+  "repo": "3dthc/mpc-addin-nova-audio",
+  "kind": "addin",
+  "style": "audio-interface",
+  "tags": [
+    "inputs",
+    "hardware-synth",
+    "monitoring",
+    "editor"
+  ],
+  "license": "MIT",
+  "summary": "Lets a plugin play the MPC's audio inputs as its own sound, so a hardware synth becomes one playable, recordable track."
+}
