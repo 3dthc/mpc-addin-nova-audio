@@ -42,10 +42,22 @@ See `INSTALL.md` in a release zip. In short: copy the unpacked folder to the dev
 over SSH. It installs to `/data/mpc-addins/nova-audio/` and adds the library to MPC's `LD_PRELOAD`, keeping
 everything already in it.
 
+Install the zip matching your device: `-mpc-armv7` for Gen1, `-mpc-aarch64` for Gen2. The installer refuses a
+mismatch rather than leaving a library MPC cannot load.
+
 **Hakai and other launchers:** where a launcher script sets `LD_PRELOAD` itself, the installer's systemd drop-in never
 reaches MPC. On Hakai, append the library to each `export LD_PRELOAD=` line of `/usr/bin/az01-launch-MPC` (back the
 file up first, and the root filesystem has to be remounted writable). `docs/ADDINS.md` in the catalog repo covers the
-general case. Check it took with:
+general case.
+
+**Gen2 (Live III) on MPC OS 3.10 — the addin is lost at every reboot without a further patch.** That device has no
+writable `/etc` (a verity rootfs that refuses remounting), so the installer falls back to writing its drop-in under
+`/run`, which is tmpfs and does not survive a power cycle. The catalog's
+[MPC Add-Ins patch](https://open-mpc.github.io/patch-addin-restore.html) restores addins at startup and is what makes
+an install stick there. Install it as well, or expect to re-run `install.sh` after each reboot. On Gen1 the drop-in
+goes to `/etc` and persists on its own, so this does not apply.
+
+Check it took with:
 
 ```sh
 grep -c nova_audio /proc/$(pidof MPC)/maps     # above 0 means it is loaded
@@ -74,7 +86,7 @@ hooks is version-specific, but no 2.x device has loaded it.
 **Gen2 (aarch64): built, never run.** The library compiles and links for aarch64 from the same source, and `readelf`
 confirms the architecture, but nobody has preloaded it into a Gen2 MPC. Two things in particular are unverified
 there: whether MPC's capture path looks the same on that hardware, and whether the launcher's `LD_PRELOAD` is set
-the same way. **This library is loaded into MPC's own process and its hooks sit on the audio thread, so treat the
+the same way. A Gen2 install also needs the add-in restore patch to survive a reboot (see Install). **This library is loaded into MPC's own process and its hooks sit on the audio thread, so treat the
 Gen2 build as experimental and keep a backup of anything you cannot lose.**
 
 Other models, channel counts and sample formats are handled in code but have not been run on hardware. Reports
