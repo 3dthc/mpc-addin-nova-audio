@@ -56,6 +56,9 @@ jobs:
       - name: Set up QEMU (the libraries are built for armhf and aarch64 under emulation)
         uses: docker/setup-qemu-action@v3
 
+      - name: ALSA headers for the offline test (the repo vendors none; the device builds get them in the container)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libasound2-dev
+
       - name: Offline tests (a fake libasound and a fake MPC, both sample layouts, under UBSan)
         run: tools/test_host.sh
 
