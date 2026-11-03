@@ -1,0 +1,128 @@
+# Builds Nova Audio for both MPC generations and attaches the zips to a DRAFT release.
+#   Actions -> Release -> Run workflow: version
+#
+# Both builds run in the bullseye containers the catalog expects (glibc 2.31), so each library loads on MPC OS 2.x
+# as well as 3.x. Gen2 MPCs run a 64-bit userland with no 32-bit libraries, so the two are separate files and the
+# installer picks by `uname -m`.
+#
+# Only the Gen1 build on MPC OS 3.x has run on hardware: README.md has the state of each target.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version, e.g. 0.2.0
+        type: string
+        required: true
+      dry_run:
+        description: Build and package only (zips as run artifacts), no draft release
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  TOOLS_REF: c6b4bb0b4939bbf64e2017bd3c11d95a080799f9
+  TAG: nova-audio-v${{ inputs.version }}
+
+jobs:
+  addin:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse to touch a published release
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          state=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate \
+                    --jq ".[] | select(.tag_name == \"$TAG\") | if .draft then \"draft\" else \"published\" end" | head -1)
+          echo "existing release for $TAG: ${state:-none}"
+          if [ "$state" = published ]; then
+            echo "::error::$TAG is already published - bump the version"; exit 1
+          fi
+
+      - name: Check out the addin
+        uses: actions/checkout@v4
+
+      - name: Check out mpc-vst-plugins (tools)
+        uses: actions/checkout@v4
+        with:
+          repository: 3dthc/mpc-vst-plugins
+          ref: ${{ env.TOOLS_REF }}
+          path: .tools
+
+      - name: Set up QEMU (the libraries are built for armhf and aarch64 under emulation)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Offline tests (a fake libasound and a fake MPC, both sample layouts, under UBSan)
+        run: tools/test_host.sh
+
+      - name: Build Gen1 (armv7)
+        run: tools/build_armhf.sh
+
+      - name: Build Gen2 (aarch64)
+        run: tools/build_aarch64.sh
+
+      - name: Package both
+        id: pkg
+        run: |
+          set -eu
+          mkdir -p dist
+          for d in build/package build/package-aarch64; do
+            python3 .tools/tools/release_addin.py --dir "$d" --version "${{ inputs.version }}" \
+              --repo "$GITHUB_REPOSITORY" --license MIT \
+              --about "Lets a plugin play the MPC's audio inputs as its own sound, so a hardware synth becomes one ordinary MPC track." \
+              -o dist
+          done
+          ls -la dist/
+          echo "zips=$(ls dist/*.zip | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
+          for z in dist/*.zip; do
+            python3 -c "
+          import json, sys, zipfile
+          z = zipfile.ZipFile(sys.argv[1])
+          m = json.loads(z.read(next(n for n in z.namelist() if n.endswith('/mpc-plugin.json'))).decode())
+          print('%s  arch=%s  max_glibc=%s' % (sys.argv[1], m.get('arch'), m.get('max_glibc')))
+          " "$z"
+          done
+          # one build per architecture, or the release would ship two zips for the same device
+          test "$(ls dist/*-mpc-armv7.zip | wc -l)" = 1
+          test "$(ls dist/*-mpc-aarch64.zip | wc -l)" = 1
+
+      - name: Upload zips as run artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.TAG }}
+          path: dist/*.zip
+
+      - name: Create or update the draft release
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ZIPS: ${{ steps.pkg.outputs.zips }}
+        run: |
+          cat > notes.md <<'EOF'
+          Lets a plugin play the MPC's audio inputs as its own sound, so a hardware synth becomes one ordinary MPC
+          track: played, monitored, recorded, mixed and resampled on the plugin's own track, with no separate audio
+          track and no Monitor switching.
+
+          Two builds: `-mpc-armv7` for Gen1 devices and `-mpc-aarch64` for Gen2. Both are built for glibc 2.31, so
+          either loads on MPC OS 2.x as well as 3.x. Install the one matching your device; the installer refuses a
+          mismatch.
+
+          **Tested on Gen1 (MPC Live II, MPC OS 3.9.1 and 3.10) only.** The Gen2 build and the 2.x targets compile
+          and package but have not run on that hardware. This library is loaded into MPC's own process with hooks on
+          its audio thread, so treat those as experimental and keep backups.
+
+          Install instructions are in `INSTALL.md` inside each zip, including the note for Hakai and other launchers
+          that set `LD_PRELOAD` themselves.
+          EOF
+          printf '\n---\nBuilt by GitHub Actions from %s@%s with mpc-vst-plugins@%s.\n' \
+            "$GITHUB_REPOSITORY" "${GITHUB_SHA::7}" "${TOOLS_REF::7}" >> notes.md
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" $ZIPS --clobber
+            gh release edit "$TAG" --draft --target "$GITHUB_SHA" --title "Nova Audio v${{ inputs.version }}" --notes-file notes.md
+          else
+            gh release create "$TAG" $ZIPS --draft --target "$GITHUB_SHA" --title "Nova Audio v${{ inputs.version }}" --notes-file notes.md
+          fi
