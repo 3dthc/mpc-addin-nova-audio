@@ -5,8 +5,7 @@ set -e
 DIR=$(cd "$(dirname "$0")/.." && pwd)
 mkdir -p "$DIR/build/package"
 docker run --rm --platform linux/arm/v7 -v "$DIR":/w -w /w arm32v7/gcc:11-bullseye sh -euc '
-  apt-get update -qq >/dev/null && apt-get install -y -qq libasound2-dev >/dev/null
-  gcc -shared -fPIC -fvisibility=hidden -std=gnu11 -O2 -Wall -Wextra -Isrc \
+  gcc -shared -fPIC -fvisibility=hidden -std=gnu11 -O2 -Wall -Wextra -Isrc -Ithird_party \
       -o build/package/libnova_audio.so src/nova_audio.c -ldl -Wl,--no-undefined
   strip build/package/libnova_audio.so
   echo "exported: $(readelf --dyn-syms -W build/package/libnova_audio.so | grep -E " GLOBAL .* [0-9]+ [A-Za-z]" | grep -v UND | awk "{print \$8}" | tr "\n" " ")"

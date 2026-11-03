@@ -85,5 +85,6 @@ welcome — please say which device, which MPC OS and what `grep -c nova_audio /
 MIT. The hooking approach (stream recognition in `snd_pcm_open`/`hw_params`/`close`, resolution with
 `dlsym(RTLD_NEXT)`, and the audio-thread rules) follows
 [mpc-addin-usb-audio](https://github.com/jacob-sabella/mpc-addin-usb-audio) by Jacob Sabella, MIT.
-It builds against the ALSA headers (`libasound2-dev`, installed by the build script in the container) and loads
-libasound itself at runtime with `dlopen`, so nothing is linked against it.
+It builds against the ALSA headers vendored in `third_party/alsa/` (LGPL-2.1-or-later, from the ALSA project; used
+for types and macros only) and loads libasound itself at runtime with `dlopen`, so nothing is linked against it and
+no build needs a package manager.

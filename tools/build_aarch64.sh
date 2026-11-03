@@ -9,8 +9,7 @@ set -e
 DIR=$(cd "$(dirname "$0")/.." && pwd)
 mkdir -p "$DIR/build/package-aarch64"
 docker run --rm --platform linux/arm64 -v "$DIR":/w -w /w arm64v8/gcc:11-bullseye sh -euc '
-  apt-get update -qq >/dev/null && apt-get install -y -qq libasound2-dev >/dev/null
-  gcc -shared -fPIC -fvisibility=hidden -std=gnu11 -O2 -Wall -Wextra -Isrc \
+  gcc -shared -fPIC -fvisibility=hidden -std=gnu11 -O2 -Wall -Wextra -Isrc -Ithird_party \
       -o build/package-aarch64/libnova_audio.so src/nova_audio.c -ldl -Wl,--no-undefined
   strip build/package-aarch64/libnova_audio.so
   echo "arch: $(readelf -h build/package-aarch64/libnova_audio.so | grep Machine)"
