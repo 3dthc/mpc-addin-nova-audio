@@ -55,14 +55,30 @@ cat /data/mpc-addins/nova-audio/nova-audio.log
 ## Build
 
 ```sh
-tools/build_armhf.sh            # Docker, arm32v7/gcc:11-bullseye: builds within the catalog's glibc ceiling
+tools/build_armhf.sh            # Gen1 (armv7), Docker arm32v7/gcc:11-bullseye: glibc 2.31, so MPC OS 2.x and 3.x
+tools/build_aarch64.sh          # Gen2 (aarch64), Docker arm64v8/gcc:11-bullseye: see the status note below
 tools/test_host.sh              # offline: a fake libasound and a fake MPC, both sample layouts, under UBSan
 ```
 
+Gen2 MPCs run a 64-bit userland with no 32-bit libraries, so MPC there cannot preload the armv7 library at all; the
+two builds are separate files and the installer picks by `uname -m`.
+
 ## Status
 
-Runs on one device: an MPC Live II (Gen 1) on MPC OS 3.9.1 with Hakai, tapping 2 channels at 44.1 kHz, S32_LE
-interleaved. Other models, channel counts and sample formats are handled in code but have not been run on hardware.
+**Gen1 (armv7), MPC OS 3.x: runs.** Confirmed on an MPC Live II (Gen 1), MPC OS 3.9.1 and 3.10 with Hakai, tapping
+2 channels at 44.1 kHz, S32_LE interleaved.
+
+**Gen1, MPC OS 2.x: built, never run.** The bullseye build is within the glibc ceiling 2.x needs, and nothing in the
+hooks is version-specific, but no 2.x device has loaded it.
+
+**Gen2 (aarch64): built, never run.** The library compiles and links for aarch64 from the same source, and `readelf`
+confirms the architecture, but nobody has preloaded it into a Gen2 MPC. Two things in particular are unverified
+there: whether MPC's capture path looks the same on that hardware, and whether the launcher's `LD_PRELOAD` is set
+the same way. **This library is loaded into MPC's own process and its hooks sit on the audio thread, so treat the
+Gen2 build as experimental and keep a backup of anything you cannot lose.**
+
+Other models, channel counts and sample formats are handled in code but have not been run on hardware. Reports
+welcome — please say which device, which MPC OS and what `grep -c nova_audio /proc/$(pidof MPC)/maps` prints.
 
 ## Credit and licence
 
